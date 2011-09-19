@@ -6526,23 +6526,28 @@ XN_C_API XnStatus xnScriptNodeRun(XnNodeHandle hScript, XnEnumerationErrors* pEr
 //---------------------------------------------------------------------------
 // General
 //---------------------------------------------------------------------------
-#if (XN_PLATFORM == XN_PLATFORM_WIN32) && (_M_X64)
-	#define XN_OPEN_NI_INSTALL_PATH_ENV "OPEN_NI_INSTALL_PATH64"
-#else
-	#define XN_OPEN_NI_INSTALL_PATH_ENV "OPEN_NI_INSTALL_PATH"
-#endif
 
-#if (XN_PLATFORM == XN_PLATFORM_WIN32)
-	#define XN_OPEN_NI_FILES_LOCATION "\\Data\\"
-#elif (CE4100)
-	#define XN_OPEN_NI_FILES_LOCATION "/usr/etc/ni/"
-#elif (XN_PLATFORM == XN_PLATFORM_LINUX_X86 || XN_PLATFORM == XN_PLATFORM_LINUX_ARM || XN_PLATFORM == XN_PLATFORM_MACOSX)
-	#define XN_OPEN_NI_FILES_LOCATION "/var/lib/ni/"
-#elif (XN_PLATFORM == XN_PLATFORM_ANDROID_ARM)
-	#define XN_OPEN_NI_FILES_LOCATION "/data/ni/"
-#else
-	#error "Unsupported platform!"
-#endif
+// Modifying XN_OPEN_NI_INSTALL_PATH_ENV and XN_OPEN_NI_FILES_LOCATION for openFrameworks portable installations (gameover 19/09/2011)
+#define XN_OPEN_NI_INSTALL_PATH_ENV "OPEN_NI_INSTALL_OF" //this won't exist in most cases but perhaps we can use it on Windows
+#define XN_OPEN_NI_FILES_LOCATION "../../../data/openni/config/"
+
+//#if (XN_PLATFORM == XN_PLATFORM_WIN32) && (_M_X64)
+//	#define XN_OPEN_NI_INSTALL_PATH_ENV "OPEN_NI_INSTALL_PATH64"
+//#else
+//	#define XN_OPEN_NI_INSTALL_PATH_ENV "OPEN_NI_INSTALL_PATH"
+//#endif
+//
+//#if (XN_PLATFORM == XN_PLATFORM_WIN32)
+//	#define XN_OPEN_NI_FILES_LOCATION "\\Data\\"
+//#elif (CE4100)
+//	#define XN_OPEN_NI_FILES_LOCATION "/usr/etc/ni/"
+//#elif (XN_PLATFORM == XN_PLATFORM_LINUX_X86 || XN_PLATFORM == XN_PLATFORM_LINUX_ARM || XN_PLATFORM == XN_PLATFORM_MACOSX)
+//	#define XN_OPEN_NI_FILES_LOCATION "/var/lib/ni/"
+//#elif (XN_PLATFORM == XN_PLATFORM_ANDROID_ARM)
+//	#define XN_OPEN_NI_FILES_LOCATION "/data/ni/"
+//#else
+//	#error "Unsupported platform!"
+//#endif
 
 XnStatus xnGetOpenNIConfFilesPath(XnChar* strDest, XnUInt32 nBufSize)
 {
@@ -6551,13 +6556,16 @@ XnStatus xnGetOpenNIConfFilesPath(XnChar* strDest, XnUInt32 nBufSize)
 	nRetVal = xnOSGetEnvironmentVariable(XN_OPEN_NI_INSTALL_PATH_ENV, strDest, nBufSize);
 	if (nRetVal == XN_STATUS_OS_ENV_VAR_NOT_FOUND)
 	{
-		#if (XN_PLATFORM == XN_PLATFORM_WIN32)
-			// we don't allow environment variable not to be defined on Windows.
-			return nRetVal;
-		#else
-			// use root FS
-			strDest[0] = '\0';
-		#endif
+//		#if (XN_PLATFORM == XN_PLATFORM_WIN32)
+//			// we don't allow environment variable not to be defined on Windows.
+//			return nRetVal;
+//		#else
+//			// use root FS
+//			strDest[0] = '\0';
+//		#endif
+		
+		// modified for oF (gameover 19/09/2011)
+		strDest[0] = '\0';
 	}
 	else
 	{
