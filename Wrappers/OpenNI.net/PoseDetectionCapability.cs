@@ -1,4 +1,25 @@
-﻿using System;
+/****************************************************************************
+*                                                                           *
+*  OpenNI 1.x Alpha                                                         *
+*  Copyright (C) 2011 PrimeSense Ltd.                                       *
+*                                                                           *
+*  This file is part of OpenNI.                                             *
+*                                                                           *
+*  OpenNI is free software: you can redistribute it and/or modify           *
+*  it under the terms of the GNU Lesser General Public License as published *
+*  by the Free Software Foundation, either version 3 of the License, or     *
+*  (at your option) any later version.                                      *
+*                                                                           *
+*  OpenNI is distributed in the hope that it will be useful,                *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of           *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the             *
+*  GNU Lesser General Public License for more details.                      *
+*                                                                           *
+*  You should have received a copy of the GNU Lesser General Public License *
+*  along with OpenNI. If not, see <http://www.gnu.org/licenses/>.           *
+*                                                                           *
+****************************************************************************/
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UserID = System.Int32;
@@ -108,6 +129,19 @@ namespace OpenNI
         private PoseDetectionStatus status;
     }
 
+    /// Utility structure to provide information about the state and status of a pose
+    public struct PoseDetectionStateStatus
+    {
+        public Int64 m_poseTime; ///< @brief The time stamp in which the user entered into the pose (0 if not in pose). 
+
+        /// @brief The status of the user's pose.
+        /// 
+        /// The progress error for getting into pose (PoseDetectionStatus, the same as received from
+        /// the in progress callback. See @ref xnRegisterToPoseDetectionInProgress).
+        public PoseDetectionStatus m_eStatus;
+        public PoseDetectionState m_eState; ///< @brief The state of the user pose (i.e. in pose, out of pose).
+    }
+
     public class PoseDetectionCapability : Capability
     {
 		internal PoseDetectionCapability(ProductionNode node)
@@ -162,6 +196,20 @@ namespace OpenNI
 			return poses;
 		}
 
+        public bool IsPoseSupported(string pose)
+        {
+            return SafeNativeMethods.xnIsPoseSupported(this.InternalObject,pose);
+        }
+
+        public PoseDetectionStateStatus GetPoseStatus(UserID userID, string poseName)
+        {
+            UInt64 outPoseTime;
+            PoseDetectionStateStatus poseStatus = new PoseDetectionStateStatus();
+            int status = SafeNativeMethods.xnGetPoseStatus(this.InternalObject,userID, poseName, out outPoseTime,out poseStatus.m_eStatus,out poseStatus.m_eState);
+            poseStatus.m_poseTime = (Int64)outPoseTime;
+            WrapperUtils.ThrowOnError(status);
+            return poseStatus;
+        }
 		public void StartPoseDetection(string pose, UserID user)
         {
             int status = SafeNativeMethods.xnStartPoseDetection(this.InternalObject, pose, user);
@@ -172,6 +220,12 @@ namespace OpenNI
 			int status = SafeNativeMethods.xnStopPoseDetection(this.InternalObject, user); 
 			WrapperUtils.ThrowOnError(status);
         }
+        public void StopSinglePoseDetection(UserID user, string pose)
+        {
+            int status = SafeNativeMethods.xnStopSinglePoseDetection(this.InternalObject, user, pose);
+            WrapperUtils.ThrowOnError(status);
+        }
+
 
         #region Pose Detected
         private event EventHandler<PoseDetectedEventArgs> poseDetectedEvent;

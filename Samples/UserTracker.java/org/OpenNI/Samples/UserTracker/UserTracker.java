@@ -1,3 +1,24 @@
+/****************************************************************************
+*                                                                           *
+*  OpenNI 1.x Alpha                                                         *
+*  Copyright (C) 2011 PrimeSense Ltd.                                       *
+*                                                                           *
+*  This file is part of OpenNI.                                             *
+*                                                                           *
+*  OpenNI is free software: you can redistribute it and/or modify           *
+*  it under the terms of the GNU Lesser General Public License as published *
+*  by the Free Software Foundation, either version 3 of the License, or     *
+*  (at your option) any later version.                                      *
+*                                                                           *
+*  OpenNI is distributed in the hope that it will be useful,                *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of           *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the             *
+*  GNU Lesser General Public License for more details.                      *
+*                                                                           *
+*  You should have received a copy of the GNU Lesser General Public License *
+*  along with OpenNI. If not, see <http://www.gnu.org/licenses/>.           *
+*                                                                           *
+****************************************************************************/
 package org.OpenNI.Samples.UserTracker;
 
 import org.OpenNI.*;
@@ -19,7 +40,14 @@ public class UserTracker extends Component
 			System.out.println("New user " + args.getId());
 			try
 			{
-				poseDetectionCap.StartPoseDetection(calibPose, args.getId());
+				if (skeletonCap.needPoseForCalibration())
+				{
+					poseDetectionCap.startPoseDetection(calibPose, args.getId());
+				}
+				else
+				{
+					skeletonCap.requestSkeletonCalibration(args.getId(), true);
+				}
 			} catch (StatusException e)
 			{
 				e.printStackTrace();
@@ -32,7 +60,7 @@ public class UserTracker extends Component
 		public void update(IObservable<UserEventArgs> observable,
 				UserEventArgs args)
 		{
-			System.out.println("Lost use " + args.getId());
+			System.out.println("Lost user " + args.getId());
 			joints.remove(args.getId());
 		}
 	}
@@ -52,9 +80,16 @@ public class UserTracker extends Component
 					skeletonCap.startTracking(args.getUser());
 	                joints.put(new Integer(args.getUser()), new HashMap<SkeletonJoint, SkeletonJointPosition>());
 			}
-			else
+			else if (args.getStatus() != CalibrationProgressStatus.MANUAL_ABORT)
 			{
-                poseDetectionCap.StartPoseDetection(calibPose, args.getUser());
+				if (skeletonCap.needPoseForCalibration())
+				{
+					poseDetectionCap.startPoseDetection(calibPose, args.getUser());
+				}
+				else
+				{
+					skeletonCap.requestSkeletonCalibration(args.getUser(), true);
+				}
 			}
 			} catch (StatusException e)
 			{
@@ -71,7 +106,7 @@ public class UserTracker extends Component
 			System.out.println("Pose " + args.getPose() + " detected for " + args.getUser());
 			try
 			{
-				poseDetectionCap.StopPoseDetection(args.getUser());
+				poseDetectionCap.stopPoseDetection(args.getUser());
 				skeletonCap.requestSkeletonCalibration(args.getUser(), true);
 			} catch (StatusException e)
 			{
@@ -268,7 +303,7 @@ public class UserTracker extends Component
 		Point3D pos1 = jointHash.get(joint1).getPosition();
 		Point3D pos2 = jointHash.get(joint2).getPosition();
 
-		if (jointHash.get(joint1).getConfidence() == 0 || jointHash.get(joint1).getConfidence() == 0)
+		if (jointHash.get(joint1).getConfidence() == 0 || jointHash.get(joint2).getConfidence() == 0)
 			return;
 
 		g.drawLine((int)pos1.getX(), (int)pos1.getY(), (int)pos2.getX(), (int)pos2.getY());

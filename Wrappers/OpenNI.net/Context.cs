@@ -1,3 +1,24 @@
+/****************************************************************************
+*                                                                           *
+*  OpenNI 1.x Alpha                                                         *
+*  Copyright (C) 2011 PrimeSense Ltd.                                       *
+*                                                                           *
+*  This file is part of OpenNI.                                             *
+*                                                                           *
+*  OpenNI is free software: you can redistribute it and/or modify           *
+*  it under the terms of the GNU Lesser General Public License as published *
+*  by the Free Software Foundation, either version 3 of the License, or     *
+*  (at your option) any later version.                                      *
+*                                                                           *
+*  OpenNI is distributed in the hope that it will be useful,                *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of           *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the             *
+*  GNU Lesser General Public License for more details.                      *
+*                                                                           *
+*  You should have received a copy of the GNU Lesser General Public License *
+*  along with OpenNI. If not, see <http://www.gnu.org/licenses/>.           *
+*                                                                           *
+****************************************************************************/
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -171,8 +192,16 @@ namespace OpenNI
 
 		public void AddLicense(License license)
 		{
-			int status = SafeNativeMethods.xnAddLicense(this.InternalObject, license);
-			WrapperUtils.ThrowOnError(status);
+            IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(license));
+            try
+            {
+                int status = SafeNativeMethods.xnAddLicense(this.InternalObject, ptr);
+                WrapperUtils.ThrowOnError(status);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
 		}
 
 		public License[] EnumerateLicenses()
@@ -222,7 +251,10 @@ namespace OpenNI
 		public ProductionNode CreateAnyProductionTree(NodeType type, Query query)
 		{
 			IntPtr nodeHandle = CreateAnyProductionTreeImpl(type, query);
-			return CreateProductionNodeObject(nodeHandle, type);
+			ProductionNode result = CreateProductionNodeObject(nodeHandle, type);
+			// release the handle (result now owns it)
+			SafeNativeMethods.xnProductionNodeRelease(nodeHandle);
+			return result;
 		}
 
 		public ProductionNode CreateProductionTree(NodeInfo nodeInfo)
@@ -253,7 +285,11 @@ namespace OpenNI
 		{
 			IntPtr nodeHandle;
 			int status = SafeNativeMethods.xnFindExistingRefNodeByType(this.InternalObject, type, out nodeHandle);
-			WrapperUtils.ThrowOnError(status);
+            if (status != 0)
+            {
+                return null;
+            }
+
 			ProductionNode node = CreateProductionNodeObject(nodeHandle, type);
 
 			// release the handle
@@ -451,7 +487,7 @@ namespace OpenNI
 					if (type == null)
 					{
 						IntPtr pNodeInfo = SafeNativeMethods.xnGetNodeInfo(nodeHandle);
-						type = SafeNativeMethods.xnNodeInfoGetDescription(pNodeInfo).Type;
+                        type = NodeInfo.FromNative(pNodeInfo).Description.Type;
 					}
 
 					ProductionNode node;

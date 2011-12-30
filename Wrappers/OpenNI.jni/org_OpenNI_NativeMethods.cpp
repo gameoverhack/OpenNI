@@ -1,3 +1,24 @@
+/****************************************************************************
+*                                                                           *
+*  OpenNI 1.x Alpha                                                         *
+*  Copyright (C) 2011 PrimeSense Ltd.                                       *
+*                                                                           *
+*  This file is part of OpenNI.                                             *
+*                                                                           *
+*  OpenNI is free software: you can redistribute it and/or modify           *
+*  it under the terms of the GNU Lesser General Public License as published *
+*  by the Free Software Foundation, either version 3 of the License, or     *
+*  (at your option) any later version.                                      *
+*                                                                           *
+*  OpenNI is distributed in the hope that it will be useful,                *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of           *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the             *
+*  GNU Lesser General Public License for more details.                      *
+*                                                                           *
+*  You should have received a copy of the GNU Lesser General Public License *
+*  along with OpenNI. If not, see <http://www.gnu.org/licenses/>.           *
+*                                                                           *
+****************************************************************************/
 //---------------------------------------------------------------------------
 // Includes
 //---------------------------------------------------------------------------
@@ -39,20 +60,28 @@ private:
 class JNIEnvSupplier
 {
 public:
-	JNIEnvSupplier() : m_pEnv(NULL)
+	JNIEnvSupplier() : m_pEnv(NULL), m_bShouldDetach(FALSE)
 	{
-		g_pVM->AttachCurrentThread((void**)&m_pEnv, NULL);
+		if (JNI_EDETACHED == g_pVM->GetEnv((void**)&m_pEnv, JNI_VERSION_1_2))
+		{
+			g_pVM->AttachCurrentThread((void**)&m_pEnv, NULL);
+			m_bShouldDetach = TRUE;
+		}
 	}
 
 	~JNIEnvSupplier()
 	{
-		g_pVM->DetachCurrentThread();
+		if (m_bShouldDetach)
+		{
+			g_pVM->DetachCurrentThread();
+		}
 	}
 
 	JNIEnv* GetEnv() { return m_pEnv; }
 
 private:
 	JNIEnv* m_pEnv;
+	XnBool m_bShouldDetach;
 };
 
 class CallbackCookie
@@ -287,7 +316,7 @@ jobject CreateJointPosition(JNIEnv* pEnv, const XnSkeletonJointPosition* pPositi
 }
 jobject CreateJointOrientation(JNIEnv* pEnv, const XnSkeletonJointOrientation* pOrientation)
 {
-	jclass cls = pEnv->FindClass("org/OpenNI/SkeletonJointOrienation");
+	jclass cls = pEnv->FindClass("org/OpenNI/SkeletonJointOrientation");
 	jmethodID ctor = pEnv->GetMethodID(cls, "<init>", "(FFFFFFFFFF)V");
 
 	return pEnv->NewObject(cls, ctor, pOrientation->orientation.elements[0], pOrientation->orientation.elements[1], pOrientation->orientation.elements[2], pOrientation->orientation.elements[3], pOrientation->orientation.elements[4], pOrientation->orientation.elements[5], pOrientation->orientation.elements[6], pOrientation->orientation.elements[7], pOrientation->orientation.elements[8], pOrientation->fConfidence);
@@ -731,6 +760,16 @@ Java_org_OpenNI_NativeMethods_xnNodeInfoGetDescription(JNIEnv *env, jclass cls, 
 	return CreateProductionNodeDescription(env, pDesc);
 }
 
+JNIEXPORT jint JNICALL 
+Java_org_OpenNI_NativeMethods_xnNodeInfoGetTreeStringRepresentation(JNIEnv *env, jclass , jlong pNodeInfo, jobject result)
+{
+	XnChar strResult[4096];
+	XnStatus nRetVal = xnNodeInfoGetTreeStringRepresentation((XnNodeInfo*)pNodeInfo, strResult, 4096);
+	XN_IS_STATUS_OK(nRetVal);
+	SetOutArgStringValue(env, result, strResult);
+	return XN_STATUS_OK;
+}
+
 JNIEXPORT jstring JNICALL 
 Java_org_OpenNI_NativeMethods_xnNodeInfoGetInstanceName(JNIEnv *env, jclass cls, jlong pNodeInfo)
 {
@@ -997,6 +1036,20 @@ Java_org_OpenNI_NativeMethods_xnSetGeneralProperty(JNIEnv *env, jclass, jlong hN
 }
 
 JNIEXPORT jint JNICALL 
+Java_org_OpenNI_NativeMethods_xnSetGeneralPropertyArray(JNIEnv *env, jclass, jlong hNode, jstring strName, jbyteArray buffer)
+{
+	jboolean isCopy;
+	jbyte* cBuffer = env->GetByteArrayElements(buffer, &isCopy);
+	jsize length = env->GetArrayLength(buffer);
+
+	XnStatus rc = xnSetGeneralProperty((XnNodeHandle)hNode, JavaString(env, strName), length, cBuffer);
+
+	env->ReleaseByteArrayElements(buffer, cBuffer, 0);
+
+	return rc;
+}
+
+JNIEXPORT jint JNICALL 
 Java_org_OpenNI_NativeMethods_xnGetIntProperty(JNIEnv *env, jclass, jlong hNode, jstring strName, jobject value)
 {
 	XnUInt64 nValue = 0;
@@ -1027,6 +1080,20 @@ JNIEXPORT jint JNICALL
 Java_org_OpenNI_NativeMethods_xnGetGeneralProperty(JNIEnv *env, jclass, jlong hNode, jstring strName, jint size, jlong buffer)
 {
 	return xnGetGeneralProperty((XnNodeHandle)hNode, JavaString(env, strName), size, (void*)buffer);
+}
+
+JNIEXPORT jint JNICALL 
+Java_org_OpenNI_NativeMethods_xnGetGeneralPropertyArray(JNIEnv *env, jclass, jlong hNode, jstring strName, jbyteArray buffer)
+{
+	jboolean isCopy;
+	jbyte* cBuffer = env->GetByteArrayElements(buffer, &isCopy);
+	jsize length = env->GetArrayLength(buffer);
+
+	XnStatus rc = xnGetGeneralProperty((XnNodeHandle)hNode, JavaString(env, strName), length, cBuffer);
+
+	env->ReleaseByteArrayElements(buffer, cBuffer, 0);
+
+	return rc;
 }
 
 JNIEXPORT jint JNICALL 
@@ -1750,7 +1817,6 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnGetAllActiveGestures(JNIE
 
 	for (int i = 0; i < nCount; ++i)
 	{
-		env->ReleaseStringUTFChars(jGestures[i], nativeGestures[i]);
 		delete []nativeGestures[i];
 	}
 	delete []jGestures;
@@ -1788,14 +1854,20 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnEnumerateAllGestures(JNIE
 	// now return the array
 	SetOutArgObjectValue(env, pGestures, gestures);
 
-	for (int i = 0; i < nCount; ++i)
+	delete [] jGestures;
+	for (int i = 0; i < 20; ++i)
 	{
-		env->ReleaseStringUTFChars(jGestures[i], nativeGestures[i]);
+		delete[] nativeGestures[i];
 	}
-	delete []jGestures;
-	delete []nativeGestures;
+	delete[] nativeGestures;
 	return XN_STATUS_OK;
 }
+
+JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnGetNumberOfAvailableGestures(JNIEnv *env, jclass, jlong hNode)
+{
+    return xnGetNumberOfAvailableGestures((XnNodeHandle)hNode);
+}
+
 JNIEXPORT jboolean JNICALL Java_org_OpenNI_NativeMethods_xnIsGestureAvailable(JNIEnv *env, jclass, jlong hNode, jstring strGesture)
 {
 	JavaString jName(env, strGesture);
@@ -1813,7 +1885,6 @@ void XN_CALLBACK_TYPE GestureRecognizedHandler(XnNodeHandle hNode, const XnChar*
 	JNIEnvSupplier supplier;
 	jstring gestureName = supplier.GetEnv()->NewStringUTF(strGesture);
 	supplier.GetEnv()->CallVoidMethod(pCallback->obj, pCallback->mid, gestureName, CreatePoint3D(supplier.GetEnv(), pIDPosition), CreatePoint3D(supplier.GetEnv(), pEndPosition));
-	supplier.GetEnv()->ReleaseStringUTFChars(gestureName, strGesture);
 }
 void XN_CALLBACK_TYPE GestureProgressHandler(XnNodeHandle hNode, const XnChar* strGesture, const XnPoint3D* pPosition, XnFloat fProgress, void* pCookie)
 {
@@ -1821,7 +1892,6 @@ void XN_CALLBACK_TYPE GestureProgressHandler(XnNodeHandle hNode, const XnChar* s
 	JNIEnvSupplier supplier;
 	jstring gestureName = supplier.GetEnv()->NewStringUTF(strGesture);
 	supplier.GetEnv()->CallVoidMethod(pCallback->obj, pCallback->mid, gestureName, CreatePoint3D(supplier.GetEnv(), pPosition), fProgress);
-	supplier.GetEnv()->ReleaseStringUTFChars(gestureName, strGesture);
 }
 jint RegisterGestureRecognized(JNIEnv* env, jlong hNode, jobject obj, jstring cb, jobject phCallback)
 {
@@ -1869,7 +1939,6 @@ void XN_CALLBACK_TYPE GesturePositionRecognizedHandler(XnNodeHandle hNode, const
 	JNIEnvSupplier supplier;
 	jstring gestureName = supplier.GetEnv()->NewStringUTF(strGesture);
 	supplier.GetEnv()->CallVoidMethod(pCallback->obj, pCallback->mid, gestureName, CreatePoint3D(supplier.GetEnv(), pPosition));
-	supplier.GetEnv()->ReleaseStringUTFChars(gestureName, strGesture);
 }
 
 JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnRegisterToGestureIntermediateStageCompleted(JNIEnv *env, jclass, jlong hNode, jobject obj, jstring cb, jobject phCallback)
@@ -2310,13 +2379,35 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnGetAllAvailablePoses(JNIE
 
 	for (XnUInt32 i = 0; i < nCount; ++i)
 	{
-		env->ReleaseStringUTFChars(jPoses[i], nativePoses[i]);
 		delete []nativePoses[i];
 	}
 	delete []jPoses;
 	delete []nativePoses;
 	return XN_STATUS_OK;
 }
+
+JNIEXPORT jboolean JNICALL Java_org_OpenNI_NativeMethods_xnIsPoseSupported(JNIEnv* env, jclass, jlong hNode, jstring strPose)
+{
+    JavaString jPose(env, strPose);
+    return xnIsPoseSupported((XnNodeHandle)hNode, jPose);
+}
+
+JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnGetPoseStatus(JNIEnv* env, jclass, jlong hNode, jint user, jstring strPose, jobject pTime, jobject eStatus, jobject eState)
+{
+    
+    JavaString jPose(env, strPose);
+    XnUInt64 nTimestamp;
+    XnPoseDetectionStatus tmpStatus;
+    XnPoseDetectionState tmpState;
+    XnStatus nRetVal = xnGetPoseStatus((XnNodeHandle)hNode,user,jPose,&nTimestamp,&tmpStatus,&tmpState);
+    XN_IS_STATUS_OK(nRetVal);
+    SetOutArgLongValue(env, pTime, nTimestamp);
+    SetOutArgIntValue(env, eState, tmpState);
+    SetOutArgIntValue(env, eStatus, tmpStatus);
+    return XN_STATUS_OK;
+
+}
+
 JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnStartPoseDetection(JNIEnv* env, jclass, jlong hNode, jstring strPose, jint user)
 {
 	JavaString jPose(env, strPose);
@@ -2326,13 +2417,17 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnStopPoseDetection(JNIEnv 
 {
 	return xnStopPoseDetection((XnNodeHandle)hNode, user);
 }
+JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnStopSinglePoseDetection(JNIEnv * env, jclass, jlong hNode, jint user, jstring strPose)
+{
+	JavaString jPose(env, strPose);
+	return xnStopSinglePoseDetection((XnNodeHandle)hNode, user, jPose);
+}
 void XN_CALLBACK_TYPE PoseDetectionHandler(XnNodeHandle hNode, const XnChar* strPose, XnUserID user, void* pCookie)
 {
 	CallbackCookie* pCallback = (CallbackCookie*)pCookie;
 	JNIEnvSupplier supplier;
 	jstring jPose = supplier.GetEnv()->NewStringUTF(strPose);
 	supplier.GetEnv()->CallVoidMethod(pCallback->obj, pCallback->mid, jPose, user);
-	supplier.GetEnv()->ReleaseStringUTFChars(jPose, strPose);
 }
 JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnRegisterToPoseDetected(JNIEnv* env, jclass, jlong hNode, jobject obj, jstring cb,jobject phCallback)
 {
@@ -2367,7 +2462,6 @@ void XN_CALLBACK_TYPE PoseDetectionInProgressHandler(XnNodeHandle hNode, const X
 	JNIEnvSupplier supplier;
 	jstring jPose = supplier.GetEnv()->NewStringUTF(strPose);
 	supplier.GetEnv()->CallVoidMethod(pCallback->obj, pCallback->mid, jPose, user, eStatus);
-	supplier.GetEnv()->ReleaseStringUTFChars(jPose, strPose);
 }
 JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnRegisterToPoseDetectionInProgress(JNIEnv* env, jclass, jlong hNode, jobject obj, jstring cb, jobject phCallback)
 {
@@ -2720,7 +2814,7 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnTellPlayerFrame(JNIEnv *e
 	XnUInt32 nFrameID;
 	XnStatus nRetVal = xnTellPlayerFrame((XnNodeHandle)hNode, JavaString(env, strName), &nFrameID);
 	XN_IS_STATUS_OK(nRetVal);
-	SetOutArgLongValue(env, pnFrameID, nFrameID);
+	SetOutArgIntValue(env, pnFrameID, nFrameID);
 	return XN_STATUS_OK;
 }
 
@@ -2729,7 +2823,7 @@ JNIEXPORT jint JNICALL Java_org_OpenNI_NativeMethods_xnGetPlayerNumFrames(JNIEnv
 	XnUInt32 nFrameID;
 	XnStatus nRetVal = xnGetPlayerNumFrames((XnNodeHandle)hNode, JavaString(env, strName), &nFrameID);
 	XN_IS_STATUS_OK(nRetVal);
-	SetOutArgLongValue(env, pnFrameID, nFrameID);
+	SetOutArgIntValue(env, pnFrameID, nFrameID);
 	return XN_STATUS_OK;
 }
 

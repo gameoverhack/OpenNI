@@ -1,6 +1,6 @@
 /****************************************************************************
 *                                                                           *
-*  OpenNI 1.1 Alpha                                                         *
+*  OpenNI 1.x Alpha                                                         *
 *  Copyright (C) 2011 PrimeSense Ltd.                                       *
 *                                                                           *
 *  This file is part of OpenNI.                                             *
@@ -249,7 +249,7 @@ XnStatus openDeviceFromXmlWithChoice(const char* csXmlFile, EnumerationErrors& e
 	printf("Choose device to open (1): ");
 
 	int chosen = 1;
-	scanf("%d", &chosen);
+	int nRetval = scanf("%d", &chosen);
 
 	// create it
 	NodeInfoList::Iterator it = list.Begin();
